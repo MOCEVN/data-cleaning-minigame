@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Detective</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #f5f5f3;
+        color: #1a1a1a;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #e0e0dc;
+        padding: 24px;
+        width: 100%;
+        max-width: 640px;
+      }
+
+      .game-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 18px;
+        color: #1a1a1a;
+      }
+
+      .hud {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+
+      .lives {
+        display: flex;
+        gap: 6px;
+      }
+      .heart {
+        width: 18px;
+        height: 18px;
+        display: inline-block;
+      }
+      .heart svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .timer-bar-wrap {
+        flex: 1;
+        margin: 0 16px;
+        height: 6px;
+        background: #e8e8e4;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .timer-bar {
+        height: 100%;
+        background: #378add;
+        border-radius: 3px;
+        transition:
+          width 0.1s linear,
+          background 0.3s;
+      }
+
+      .score-lbl {
+        font-size: 13px;
+        color: #888;
+        min-width: 70px;
+        text-align: right;
+      }
+
+      .round-lbl {
+        font-size: 12px;
+        color: #aaa;
+        margin-bottom: 8px;
+      }
+
+      .hint {
+        font-size: 13px;
+        color: #555;
+        margin-bottom: 12px;
+        line-height: 1.5;
+        background: #f8f8f6;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #e8e8e4;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: fixed;
+      }
+
+      th {
+        font-weight: 500;
+        font-size: 11px;
+        color: #888;
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid #e8e8e4;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      td {
+        padding: 8px 8px;
+        border-bottom: 1px solid #f0f0ec;
+        color: #1a1a1a;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background 0.15s;
+        word-break: break-word;
+      }
+
+      td:hover {
+        background: #f5f5f3;
+      }
+      td.correct {
+        background: #eaf3de !important;
+        color: #27500a !important;
+        cursor: default;
+      }
+      td.wrong {
+        background: #fcebeb !important;
+        color: #791f1f !important;
+      }
+      td.missed {
+        background: #faeeda !important;
+        color: #633806 !important;
+        cursor: default;
+      }
+      td.clean {
+        cursor: pointer;
+      }
+
+      .feedback {
+        font-size: 13px;
+        min-height: 22px;
+        margin: 12px 0 4px;
+        color: #666;
+      }
+
+      /* End screen */
+      .overlay {
+        text-align: center;
+        padding: 2rem 1rem;
+      }
+      .overlay h2 {
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .overlay p {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 6px;
+      }
+      .overlay .end-stats {
+        font-size: 15px;
+        font-weight: 500;
+        margin: 12px 0 20px;
+        color: #1a1a1a;
+      }
+
+      button {
+        background: #1a1a1a;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 22px;
+        font-size: 14px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      button:hover {
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="game-title">Data Detective</div>
+
+      <div id="game-area">
+        <div class="hud">
+          <div class="lives" id="lives-display"></div>
+          <div class="timer-bar-wrap">
+            <div class="timer-bar" id="timer-bar" style="width: 100%"></div>
+          </div>
+          <div class="score-lbl">Score: <span id="score-val">0</span></div>
+        </div>
+        <div class="round-lbl" id="round-lbl">Ronde 1 van 3</div>
+        <div class="hint" id="hint-text"></div>
+        <div id="table-wrap"></div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+
+      <div id="end-screen" style="display: none">
+        <div class="overlay">
+          <h2 id="end-title"></h2>
+          <p id="end-msg"></p>
+          <div class="end-stats" id="end-stats"></div>
+          <button onclick="startGame()">Opnieuw spelen</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const ROUNDS = [
+        {
+          hint: "Vind alle foute cellen. Klik op cellen met ontbrekende waarden (NaN) of inconsistente tekst.",
+          cols: ["naam", "stad", "leeftijd", "email"],
+          rows: [
+            {
+              vals: ["Jan de Vries", "amsterdam", "28", "jan@mail.nl"],
+              errors: [1],
+            },
+            {
+              vals: ["Maria Lopez", "Amsterdam", "31", "maria@mail.nl"],
+              errors: [],
+            },
+            {
+              vals: ["Pieter Bakker", "Rotterdam", "NaN", "pieter@mail.nl"],
+              errors: [2],
+            },
+            {
+              vals: ["Sara Jansen", "AMSTERDAM", "25", "sara@mail.nl"],
+              errors: [1],
+            },
+            {
+              vals: ["Tom Visser", "Utrecht", "29", "tom@mail.nl"],
+              errors: [],
+            },
+          ],
+        },
+        {
+          hint: "Let op duplicaten! Rijen die exact hetzelfde zijn als een eerdere rij zijn fouten.",
+          cols: ["naam", "afdeling", "score", "datum"],
+          rows: [
+            {
+              vals: ["Anna Smit", "Marketing", "88", "2024-01-10"],
+              errors: [],
+            },
+            { vals: ["Boris Klaas", "Sales", "72", "2024-01-11"], errors: [] },
+            {
+              vals: ["Anna Smit", "Marketing", "88", "2024-01-10"],
+              errors: [0, 1, 2, 3],
+            },
+            { vals: ["Clara Dijk", "HR", "NaN", "2024-01-12"], errors: [2] },
+            { vals: ["Boris Klaas", "sales", "72", "2024-01-11"], errors: [1] },
+          ],
+        },
+        {
+          hint: "Mix van fouten: NaN, duplicaten en inconsistente tekst. Vind ze allemaal!",
+          cols: ["product", "categorie", "prijs", "voorraad"],
+          rows: [
+            { vals: ["Laptop", "elektronica", "999", "15"], errors: [1] },
+            { vals: ["Muis", "Elektronica", "25", "NaN"], errors: [3] },
+            {
+              vals: ["Laptop", "elektronica", "999", "15"],
+              errors: [0, 1, 2, 3],
+            },
+            { vals: ["Toetsenbord", "ELEKTRONICA", "45", "30"], errors: [1] },
+            { vals: ["Monitor", "Elektronica", "349", "8"], errors: [] },
+          ],
+        },
+      ];
+
+      let lives, score, round, timerInterval, timeLeft, totalTime;
+      let found, total;
+      let gameActive = false;
+
+      function heart(full) {
+        const c = full ? "#E24B4A" : "#D3D1C7";
+        return `<span class="heart"><svg viewBox="0 0 18 18" fill="none">
+    <path d="M9 15s-6-4.35-6-8.25A3.75 3.75 0 0 1 9 4.41 3.75 3.75 0 0 1 15 6.75C15 10.65 9 15 9 15Z" fill="${c}"/>
+  </svg></span>`;
+      }
+
+      function renderLives() {
+        let h = "";
+        for (let i = 0; i < 3; i++) h += heart(i < lives);
+        document.getElementById("lives-display").innerHTML = h;
+      }
+
+      function startGame() {
+        lives = 3;
+        score = 0;
+        round = 0;
+        document.getElementById("end-screen").style.display = "none";
+        document.getElementById("game-area").style.display = "block";
+        loadRound();
+      }
+
+      function loadRound() {
+        if (round >= ROUNDS.length) {
+          endGame(true);
+          return;
+        }
+        const r = ROUNDS[round];
+        found = 0;
+        total = r.rows.reduce((s, row) => s + row.errors.length, 0);
+        totalTime = 25000;
+        timeLeft = totalTime;
+        gameActive = true;
+
+        document.getElementById("round-lbl").textContent =
+          `Ronde ${round + 1} van ${ROUNDS.length}`;
+        document.getElementById("hint-text").textContent = r.hint;
+        document.getElementById("feedback").textContent =
+          `Vind ${total} fout${total !== 1 ? "en" : ""}.`;
+        document.getElementById("score-val").textContent = score;
+        renderLives();
+        renderTable();
+        startTimer();
+      }
+
+      function renderTable() {
+        const r = ROUNDS[round];
+        let html = `<table><tr>${r.cols.map((c) => `<th>${c}</th>`).join("")}</tr>`;
+        r.rows.forEach((row, ri) => {
+          html += "<tr>";
+          row.vals.forEach((v, ci) => {
+            const isErr = row.errors.includes(ci);
+            html += `<td id="c${ri}_${ci}" class="clean" onclick="clickCell(${ri},${ci},${isErr})">${v}</td>`;
+          });
+          html += "</tr>";
+        });
+        html += "</table>";
+        document.getElementById("table-wrap").innerHTML = html;
+      }
+
+      function clickCell(ri, ci, isErr) {
+        if (!gameActive) return;
+        const el = document.getElementById(`c${ri}_${ci}`);
+        if (
+          !el ||
+          el.classList.contains("correct") ||
+          el.classList.contains("missed")
+        )
+          return;
+
+        if (isErr) {
+          el.classList.remove("wrong");
+          el.classList.add("correct");
+          el.onclick = null;
+          found++;
+          score += 10;
+          document.getElementById("score-val").textContent = score;
+          const rem = total - found;
+          document.getElementById("feedback").textContent =
+            rem > 0
+              ? `Nog ${rem} fout${rem !== 1 ? "en" : ""} te vinden.`
+              : "Alle fouten gevonden!";
+          if (found === total) setTimeout(nextRound, 800);
+        } else {
+          el.classList.add("wrong");
+          setTimeout(() => el && el.classList.remove("wrong"), 500);
+          lives--;
+          renderLives();
+          document.getElementById("feedback").textContent =
+            "Dat is een correcte cel! -1 leven.";
+          if (lives <= 0) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            revealMissed();
+            setTimeout(() => endGame(false), 1200);
+          }
+        }
+      }
+
+      function revealMissed() {
+        const r = ROUNDS[round];
+        r.rows.forEach((row, ri) => {
+          row.errors.forEach((ci) => {
+            const el = document.getElementById(`c${ri}_${ci}`);
+            if (el && !el.classList.contains("correct"))
+              el.classList.add("missed");
+          });
+        });
+      }
+
+      function startTimer() {
+        clearInterval(timerInterval);
+        const bar = document.getElementById("timer-bar");
+        timerInterval = setInterval(() => {
+          timeLeft -= 100;
+          const pct = Math.max(0, (timeLeft / totalTime) * 100);
+          bar.style.width = pct + "%";
+          bar.style.background =
+            pct > 50 ? "#378ADD" : pct > 25 ? "#EF9F27" : "#E24B4A";
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            gameActive = false;
+            revealMissed();
+            document.getElementById("feedback").textContent = "Tijd is om!";
+            lives--;
+            renderLives();
+            if (lives <= 0) setTimeout(() => endGame(false), 1000);
+            else setTimeout(nextRound, 1200);
+          }
+        }, 100);
+      }
+
+      function nextRound() {
+        clearInterval(timerInterval);
+        gameActive = false;
+        round++;
+        setTimeout(loadRound, 300);
+      }
+
+      function endGame(won) {
+        clearInterval(timerInterval);
+        gameActive = false;
+        document.getElementById("game-area").style.display = "none";
+        document.getElementById("end-screen").style.display = "block";
+        document.getElementById("end-title").textContent = won
+          ? "Gelukt!"
+          : "Game over";
+        document.getElementById("end-msg").textContent = won
+          ? "Je hebt alle datasets opgeschoond."
+          : "Je hebt al je levens verloren.";
+        document.getElementById("end-stats").textContent =
+          `Eindscore: ${score} punten`;
+      }
+
+      startGame();
+    </script>
+  </body>
+</html>
