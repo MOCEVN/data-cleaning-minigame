@@ -1,1 +1,1 @@
-# data-cleaning-minigame
+# Data Cleaning Minigame
